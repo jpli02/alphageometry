@@ -1,4 +1,3 @@
-import dd
 import graph as gh
 import problem as pr
 import ddar
@@ -20,7 +19,10 @@ class SolutionVerifier:
         sol = solution_txt.strip().rstrip(";")
         if not sol:
             return prob
-
+        
+        if sol in prob:
+            return prob
+        
         # Inject solution before the '?' separator
         if "?" not in prob:
             return f"{prob.rstrip(';')}; {sol}"
@@ -47,15 +49,12 @@ class SolutionVerifier:
         except Exception as e:
             print(f"Syntax Error in solution: {e}")
             return False
-
+    
         if p.goal is None:
             return False
   
         g, _ = gh.Graph.build_problem(p, self.defs, verbose=False)
         
-        _, _, status, _, _ = ddar.solve(
-            g, 
-            self.rules, 
-            p, max_level=100, timeout=600)
-  
-        return status == 'solved'
+        ddar.solve(g, self.rules, p, max_level=100, timeout=300)
+        goal_args = g.names2nodes(p.goal.args)
+        return g.check(p.goal.name, goal_args)
