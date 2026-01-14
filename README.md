@@ -196,6 +196,54 @@ will write the proof to a text file.
 Running on all problems in `imo_ag_30.txt` will yield solutions to
 14 of them, as reported in Table 1 in our paper.
 
+## Verify Solutions
+
+The `SolutionVerifier` class provides a convenient way to verify if a solution
+(auxiliary construction) is correct for a given geometry problem. This is useful
+for evaluating LLM-generated solutions or checking candidate constructions.
+
+### Basic Usage
+
+```python
+from solution_verifier import SolutionVerifier
+
+# Initialize the verifier (loads defs.txt and rules.txt)
+verifier = SolutionVerifier()
+
+# Define a problem
+problem = 'a b c = triangle a b c; d = on_tline d b a c, on_tline d c a b ? perp a d b c'
+
+# Verify without solution (should fail for this problem)
+result = verifier.verify(problem, solution=None)
+print(f"Without solution: {result}")  # False
+
+# Verify with a solution (auxiliary construction)
+solution = 'e = on_line e a c, on_line e b d'
+result = verifier.verify(problem, solution=solution)
+print(f"With solution: {result}")  # True
+```
+
+
+### Using inject_solution
+
+The `inject_solution` static method can be used to manually inject a solution
+into a problem DSL string:
+
+```python
+from solution_verifier import SolutionVerifier
+
+problem = 'a b c = triangle a b c ? perp a d b c'
+solution = 'd = on_tline d b a c, on_tline d c a b'
+
+# Inject solution into problem
+full_problem = SolutionVerifier.inject_solution(problem, solution)
+print(full_problem)
+# Output: 'a b c = triangle a b c; d = on_tline d b a c, on_tline d c a b ? perp a d b c'
+```
+
+The `verify` method automatically handles solution injection internally, so you
+typically don't need to call `inject_solution` directly.
+
 ## Run AlphaGeometry:
 
 As a simple example, we load `--problem_name=orthocenter`
@@ -343,6 +391,7 @@ each of them and their description.
 | `ar.py`                | Implements AR and its traceback.                                                   |
 | `trace_back.py`        | Implements the recursive traceback and dependency difference algorithm.            |
 | `ddar.py`              | Implements the combination DD+AR.                                                  |
+| `solution_verifier.py` | Implements solution verification for geometry problems with auxiliary constructions.|
 | `beam_search.py`       | Implements beam decoding of a language model in JAX.                               |
 | `models.py`            | Implements the transformer model.                                                  |
 | `transformer_layer.py` | Implements the transformer layer.                                                  |
