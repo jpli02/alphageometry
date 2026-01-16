@@ -31,39 +31,47 @@ class ProofVerifier:
             target_construction = pr.Construction.from_txt(target_predicate_str)
         except Exception:
             return False
-        print(f"Target construction: {target_construction}")
         # 2. Build graph from context
         try:
             temp_prob_txt = f"{context_str.strip().rstrip(';')} ? {target_predicate_str}"
             p = pr.Problem.from_txt(temp_prob_txt)
-            print(f"Problem built: {p.txt()}")
             g, _ = gh.Graph.build_problem(p, self.defs, verbose=False)
-            print(f"Graph built: {g.txt()}")
         except Exception:
             return False
-        print(f"Graph built")
-        # 3. BFS loop
+        # 3. BFS loop with DD + AR
         level = 1
         while level <= max_level:
+            # Check if goal is already satisfied
             goal_args = g.names2nodes(target_construction.args)
             if g.check(target_construction.name, goal_args):
                 return True
 
-            added, _, _, _ = dd.bfs_one_level(
-                g, self.rules_list, level, p, verbose=False, nm_check=True, timeout=30
+            # Run DD (deduction rules)
+            # bfs_one_level already runs AR internally and returns derives/eq4s
+            # Note: bfs_one_level expects rules as dict (not list)
+            added, derives, eq4s, _ = dd.bfs_one_level(
+                g, self.rules_dict, level, p, verbose=False, nm_check=True, timeout=30
             )
             
-            if not added:  # Saturated, no new facts
-                for d in added: g.add_algebra(d, level)
-                derives, eq4s = g.derive_algebra(level, verbose=False)
-                added_alg = dd.apply_derivations(g, derives)
+            # Apply AR derivations if any
+            added_alg = []
+            if derives:
+                added_alg += dd.apply_derivations(g, derives)
+            if eq4s:
                 added_alg += dd.apply_derivations(g, eq4s)
-                
-                if not added_alg and not added:
-                    break
+            
+            # Check goal again after applying AR
+            goal_args = g.names2nodes(target_construction.args)
+            if g.check(target_construction.name, goal_args):
+                return True
+            
+            # If no new facts from DD or AR, we're saturated
+            if not added and not added_alg:
+                break
             
             level += 1
 
+        # Final check
         goal_args = g.names2nodes(target_construction.args)
         return g.check(target_construction.name, goal_args)
 
@@ -131,7 +139,7 @@ class ProofVerifier:
             else:
                 # Derivation step checking: BFS verification
                 print(f"  Step {step_num} (Derivation): {step}")
-                if self._run_bfs_check(current_context, step, max_level=2):
+                if self._run_bfs_check(current_context, step, max_level=1):
                     print(f"    [OK]")
                 else:
                     result["error_msg"] = f"Step {step_num} Logic Gap: '{step}' not derivable from current context."
