@@ -89,17 +89,17 @@ class ProofVerifierTest(unittest.TestCase):
     self.assertFalse(result["is_valid"])
     self.assertIn("No proof steps", result["error_msg"])
 
-  # def test_verify_proof_no_goal(self):
-  #   """Test verification with problem that has no goal."""
-  #   problem = 'a b c = triangle a b c'
-  #   proof = 'd = on_line d a b'
+  def test_verify_proof_no_goal(self):
+    """Test verification with problem that has no goal."""
+    problem = 'a b c = triangle a b c'
+    proof = 'd = on_line d a b'
     
-  #   result = self.verifier.verify_proof(problem, proof)
+    result = self.verifier.verify_proof(problem, proof)
     
-  #   # Should be valid if all steps are valid (no goal to reach)
-  #   self.assertTrue(result["is_valid"])
-  #   self.assertTrue(result["goal_reached"])
-  #   self.assertIn("No global goal", result["error_msg"])
+    # Should be valid if all steps are valid (no goal to reach)
+    self.assertTrue(result["is_valid"])
+    self.assertTrue(result["goal_reached"])
+    self.assertIn("No global goal", result["error_msg"])
 
   def test_verify_proof_steps_valid_but_goal_not_reached(self):
     """Test case where all steps are valid but goal is not reached."""

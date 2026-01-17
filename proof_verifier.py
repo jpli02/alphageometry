@@ -27,8 +27,11 @@ class ProofVerifier:
             temp_prob_txt = f"{context_str} ? {target_predicate_str}"
             p = pr.Problem.from_txt(temp_prob_txt)
             try:
+                print(f"build graph for problem: {temp_prob_txt}")
                 g, _ = gh.Graph.build_problem(p, self.defs, verbose=False)
+                print(f"graph built for problem: {temp_prob_txt}")
             except Exception as e:
+                print(f"  [Graph build failed] {type(e).__name__}: {e}")
                 return False
         except Exception as e:
             return False

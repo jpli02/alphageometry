@@ -489,15 +489,32 @@ class Graph:
       definitions: dict[str, problem.Definition],
       verbose: bool = True,
       init_copy: bool = True,
+      max_retries: int = 20,
   ) -> tuple[Graph, list[Dependency]]:
-    """Build a problem into a gr.Graph object."""
-    check = False
+    """Build a problem into a gr.Graph object.
+    
+    Args:
+      pr: Problem to build
+      definitions: Definitions dictionary
+      verbose: Whether to log verbosely
+      init_copy: Whether to initialize as copy (unused parameter kept for compatibility)
+      max_retries: Maximum number of retries before giving up (default 20)
+    
+    Returns:
+      Tuple of (Graph, list of Dependencies)
+    
+    Raises:
+      RuntimeError: If graph cannot be built after max_retries attempts
+    """
     g = None
     added = None
+    retry_count = 0
     if verbose:
       logging.info(pr.url)
       logging.info(pr.txt())
-    while not check:
+    
+    # Build the graph with retry limit for geometric exceptions
+    while retry_count < max_retries:
       try:
         g = Graph()
         added = []
@@ -508,19 +525,32 @@ class Graph:
           )
           added += adds
         g.plevel = plevel
-
-      except (nm.InvalidLineIntersectError, nm.InvalidQuadSolveError):
-        continue
-      except DepCheckFailError:
-        continue
-      except (PointTooCloseError, PointTooFarError):
-        continue
-
-      if not pr.goal:
+        # Successfully built graph - break out of retry loop
         break
 
-      args = list(map(lambda x: g.get(x, lambda: int(x)), pr.goal.args))
-      check = nm.check(pr.goal.name, args)
+      except (nm.InvalidLineIntersectError, nm.InvalidQuadSolveError):
+        retry_count += 1
+        if retry_count >= max_retries:
+          break
+        continue
+      except DepCheckFailError:
+        retry_count += 1
+        if retry_count >= max_retries:
+          break
+        continue
+      except (PointTooCloseError, PointTooFarError):
+        retry_count += 1
+        if retry_count >= max_retries:
+          break
+        continue
+
+    # Check if we failed to build the graph
+    if g is None:
+      error_msg = (
+          f"Failed to build graph after {max_retries} retries due to geometric exceptions. "
+          f"Problem: {pr.txt()}"
+      )
+      raise RuntimeError(error_msg)
 
     g.url = pr.url
     g.build_def = (pr, definitions)
