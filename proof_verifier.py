@@ -15,65 +15,68 @@ class ProofVerifier:
 
     def _run_bfs_check(self, context_str: str, target_predicate_str: str, max_level=2) -> bool:
         """
-        Core helper: Check if a target derivation step is reachable
-                    from the given context using BFS. 
-                        
-        Args:
-            context_str: Current context (premises + previous steps)
-            target_predicate_str: Target predicate to verify (e.g., "perp a d b c")
-            max_level: Maximum BFS depth (increase this as problem becomes more complex
-            
-        Returns:
-            True if target is reachable, False otherwise
+        Check if target is derivable from context by incrementally enabling
+        more complex rule levels (AlphaGeometry style).
         """
-        # 1. Parse target as Construction (predicate, not clause)
+        target_predicate_str = target_predicate_str.strip().rstrip(";")
+        context_str = context_str.strip().rstrip(";")
+
+        # 1) Build a temporary Problem with explicit goal
+        # Problem.from_txt() will parse the goal as a Construction
         try:
-            target_construction = pr.Construction.from_txt(target_predicate_str)
-        except Exception:
-            return False
-        # 2. Build graph from context
-        try:
-            temp_prob_txt = f"{context_str.strip().rstrip(';')} ? {target_predicate_str}"
+            temp_prob_txt = f"{context_str} ? {target_predicate_str}"
             p = pr.Problem.from_txt(temp_prob_txt)
-            g, _ = gh.Graph.build_problem(p, self.defs, verbose=False)
-        except Exception:
+            try:
+                g, _ = gh.Graph.build_problem(p, self.defs, verbose=False)
+            except Exception as e:
+                return False
+        except Exception as e:
             return False
-        # 3. BFS loop with DD + AR
-        level = 1
-        while level <= max_level:
-            # Check if goal is already satisfied
-            goal_args = g.names2nodes(target_construction.args)
-            if g.check(target_construction.name, goal_args):
+
+        # Check if goal exists
+        if p.goal is None:
+            return False
+
+
+        # Helper: check goal if all names exist
+        def goal_holds() -> bool:
+            try:
+                goal_args = g.names2nodes(p.goal.args)
+            except Exception:
+                return False
+            return g.check(p.goal.name, goal_args)
+
+        # 3) Incremental deepening over theorem "level"
+        # IMPORTANT: do NOT break just because a lower level saturates.
+        for level in range(1, max_level + 1):
+            if goal_holds():
                 return True
 
-            # Run DD (deduction rules)
-            # bfs_one_level already runs AR internally and returns derives/eq4s
-            # Note: bfs_one_level expects rules as dict (not list)
+            # One pass of DD/AR at this level
             added, derives, eq4s, _ = dd.bfs_one_level(
-                g, self.rules_dict, level, p, verbose=False, nm_check=True, timeout=30
+                g,
+                self.rules_dict,
+                level,
+                p,
+                verbose=False,
+                nm_check=True,
+                timeout=30,  # Reduced timeout for faster failure
             )
-            
-            # Apply AR derivations if any
-            added_alg = []
-            if derives:
-                added_alg += dd.apply_derivations(g, derives)
-            if eq4s:
-                added_alg += dd.apply_derivations(g, eq4s)
-            
-            # Check goal again after applying AR
-            goal_args = g.names2nodes(target_construction.args)
-            if g.check(target_construction.name, goal_args):
-                return True
-            
-            # If no new facts from DD or AR, we're saturated
-            if not added and not added_alg:
-                break
-            
-            level += 1
 
-        # Final check
-        goal_args = g.names2nodes(target_construction.args)
-        return g.check(target_construction.name, goal_args)
+            # Apply AR outputs (if bfs_one_level doesn't already apply them)
+            if derives:
+                dd.apply_derivations(g, derives)
+            if eq4s:
+                dd.apply_derivations(g, eq4s)
+
+            if goal_holds():
+                return True
+
+            # NO early break here.
+            # Even if this level added nothing, the next level may enable new rules.
+
+        return goal_holds()
+
 
     def verify_proof(self, problem_txt: str, proof_dsl: str) -> dict:
         """
@@ -126,25 +129,20 @@ class ProofVerifier:
                     continue
                 
                 temp_context = f"{current_context}; {step}"
-                try:
-                    p_temp = pr.Problem.from_txt(temp_context)
-                    gh.Graph.build_problem(p_temp, self.defs, verbose=False)
-                    current_context = temp_context  
-                    print(f"  Step {step_num} (Construction): {step} [OK]")
-                except Exception as e:
-                    result["error_msg"] = f"Step {step_num} Construction Error: '{step}' -> {str(e)}"
-                    result["steps_passed"] = i  # Failed at step i (0-indexed)
-                    return result
-
+                current_context = temp_context
+                print(f"  Step {step_num} (Construction): {step} [OK]")
+                    
             else:
                 # Derivation step checking: BFS verification
                 print(f"  Step {step_num} (Derivation): {step}")
-                if self._run_bfs_check(current_context, step, max_level=1):
+                if self._run_bfs_check(current_context, step, max_level=3):
                     print(f"    [OK]")
+                    current_context = f"{current_context}; {step}"
                 else:
                     result["error_msg"] = f"Step {step_num} Logic Gap: '{step}' not derivable from current context."
                     result["steps_passed"] = i  # Failed at step i (0-indexed)
                     return result
+                
         print("All steps passed")
         # All steps passed
         result["steps_passed"] = len(steps)
@@ -161,7 +159,7 @@ class ProofVerifier:
         
         # For final goal, use larger max_level (e.g., 10)
         is_goal_reached = self._run_bfs_check(current_context, global_goal_dsl.strip(), max_level=10)
-
+        print("is_goal_reached: ", is_goal_reached)
         if is_goal_reached:
             result["is_valid"] = True
             result["goal_reached"] = True
