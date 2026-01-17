@@ -196,7 +196,7 @@ will write the proof to a text file.
 Running on all problems in `imo_ag_30.txt` will yield solutions to
 14 of them, as reported in Table 1 in our paper.
 
-## Verify Solutions
+## Verifier 1: with ddar.solve
 
 The `SolutionVerifier` class provides a convenient way to verify if a solution
 (auxiliary construction) is correct for a given geometry problem. This is useful
@@ -243,6 +243,104 @@ print(full_problem)
 
 The `verify` method automatically handles solution injection internally, so you
 typically don't need to call `inject_solution` directly.
+
+## Verifier 2: Step-by-Step Verification
+
+The `ProofVerifier` class provides step-by-step verification of geometry proofs,
+checking that each step (construction or derivation) is logically valid and that
+the proof correctly solves the problem. Unlike `SolutionVerifier`, which only
+checks if a solution works, `ProofVerifier` validates each intermediate step,
+ensuring that if any middle step is wrong, the verification fails immediately.
+
+### Basic Usage
+
+```python
+from proof_verifier import ProofVerifier
+
+# Initialize the verifier (loads defs.txt and rules.txt)
+verifier = ProofVerifier()
+
+# Define a problem
+problem = 'a b c = triangle a b c; d = on_tline d b a c, on_tline d c a b ? perp a d b c'
+
+# Verify a proof with multiple steps
+proof = 'e = on_line e a c, on_line e b d'
+result = verifier.verify_proof(problem, proof)
+
+print(f"Valid: {result['is_valid']}")  # True
+print(f"Goal reached: {result['goal_reached']}")  # True
+print(f"Steps passed: {result['steps_passed']}")  # 1
+print(f"Message: {result['error_msg']}")  # "Success: All proof steps valid and goal reached."
+```
+
+### Understanding the Result Dictionary
+
+The `verify_proof` method returns a dictionary with the following keys:
+
+- **`is_valid`**: `True` if all proof steps are valid and the goal is reached
+- **`goal_reached`**: `True` if the final goal is derivable from the proof
+- **`steps_passed`**: Number of steps that passed verification (0-indexed)
+- **`error_msg`**: Descriptive message explaining the verification result
+
+### Example: Multiple Steps
+
+```python
+from proof_verifier import ProofVerifier
+
+verifier = ProofVerifier()
+
+# Problem with multiple proof steps
+problem = 'a b c = triangle a b c ? perp a d b c'
+proof = 'd = on_tline d b a c, on_tline d c a b; e = on_line e a c, on_line e b d'
+
+result = verifier.verify_proof(problem, proof)
+
+if result['is_valid']:
+    print("Proof is valid!")
+else:
+    print(f"Proof failed at step {result['steps_passed'] + 1}")
+    print(f"Error: {result['error_msg']}")
+```
+
+### Step-by-Step Verification
+
+The verifier checks each step sequentially:
+
+1. **Construction steps** (containing `=`): Adds the construction to the context
+2. **Derivation steps** (predicates like `perp`, `cong`, etc.): Verifies that the
+   predicate is derivable from the current context using DD+AR
+
+If any step fails, verification stops immediately and returns an error message
+indicating which step failed and why.
+
+### Example: Invalid Proof
+
+```python
+from proof_verifier import ProofVerifier
+
+verifier = ProofVerifier()
+
+problem = 'a b c = triangle a b c ? perp a d b c'
+# Valid construction but wrong derivation
+proof = 'd = on_tline d b a c, on_tline d c a b; cong a b c d'  # Wrong derivation
+
+result = verifier.verify_proof(problem, proof)
+
+print(result['is_valid'])  # False
+print(result['steps_passed'])  # 1 (first step passed, second failed)
+print(result['error_msg'])  # "Step 2 Logic Gap: 'cong a b c d' not derivable from current context."
+```
+
+### Differences from SolutionVerifier
+
+- **`SolutionVerifier`**: Checks if a solution (auxiliary construction) makes the
+  problem solvable. It doesn't verify intermediate steps.
+- **`ProofVerifier`**: Validates each step of a complete proof, ensuring logical
+  correctness at every stage. It stops immediately if any step is invalid.
+
+Use `SolutionVerifier` when you only have a candidate solution and want to check
+if it works. Use `ProofVerifier` when you have a complete proof and want to verify
+its logical correctness step-by-step.
 
 ## Run AlphaGeometry:
 
@@ -392,6 +490,7 @@ each of them and their description.
 | `trace_back.py`        | Implements the recursive traceback and dependency difference algorithm.            |
 | `ddar.py`              | Implements the combination DD+AR.                                                  |
 | `solution_verifier.py` | Implements solution verification for geometry problems with auxiliary constructions.|
+| `proof_verifier.py`    | Implements step-by-step proof verification for geometry proofs with DD+AR.        |
 | `beam_search.py`       | Implements beam decoding of a language model in JAX.                               |
 | `models.py`            | Implements the transformer model.                                                  |
 | `transformer_layer.py` | Implements the transformer layer.                                                  |
