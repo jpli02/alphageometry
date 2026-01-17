@@ -27,9 +27,7 @@ class ProofVerifier:
             temp_prob_txt = f"{context_str} ? {target_predicate_str}"
             p = pr.Problem.from_txt(temp_prob_txt)
             try:
-                print(f"build graph for problem: {temp_prob_txt}")
                 g, _ = gh.Graph.build_problem(p, self.defs, verbose=False)
-                print(f"graph built for problem: {temp_prob_txt}")
             except Exception as e:
                 print(f"  [Graph build failed] {type(e).__name__}: {e}")
                 return False
@@ -47,7 +45,17 @@ class ProofVerifier:
                 goal_args = g.names2nodes(p.goal.args)
             except Exception:
                 return False
-            return g.check(p.goal.name, goal_args)
+            try:
+                return g.check(p.goal.name, goal_args)
+            except (ValueError, KeyError, AttributeError) as e:
+                # g.check can raise ValueError for unrecognized predicate names
+                # or other errors for invalid arguments
+                print(f"  [Check failed] {type(e).__name__}: {e}")
+                return False
+            except Exception as e:
+                # Catch any other unexpected exceptions
+                print(f"  [Check error] {type(e).__name__}: {e}")
+                return False
 
         # 3) Incremental deepening over theorem "level"
         # IMPORTANT: do NOT break just because a lower level saturates.
@@ -157,8 +165,6 @@ class ProofVerifier:
             result["goal_reached"] = True
             result["error_msg"] = "Verified (No global goal)."
             return result
-
-        print(f"  Verifying Final Goal: {global_goal_dsl}")
         
         # For final goal, use larger max_level (e.g., 10)
         is_goal_reached = self._run_bfs_check(current_context, global_goal_dsl.strip(), max_level=10)

@@ -31,28 +31,28 @@ class ProofVerifierTest(unittest.TestCase):
     self.assertEqual(result["steps_passed"], 1)
     self.assertIn("Success", result["error_msg"])
 
-  # def test_verify_proof_valid_multiple_steps(self):
-  #   """Test verification with multiple proof steps."""
-  #   problem = 'a b c = triangle a b c ? perp a d b c'
-  #   # First add construction, then verify a derivation step
-  #   proof = 'd = on_tline d b a c, on_tline d c a b; e = on_line e a c, on_line e b d'
+  def test_verify_proof_valid_multiple_steps(self):
+    """Test verification with multiple proof steps."""
+    problem = 'a b c = triangle a b c ? perp a d b c'
+    # First add construction, then verify a derivation step
+    proof = 'd = on_tline d b a c, on_tline d c a b; e = on_line e a c, on_line e b d'
     
-  #   result = self.verifier.verify_proof(problem, proof)
+    result = self.verifier.verify_proof(problem, proof)
     
-  #   self.assertTrue(result["is_valid"])
-  #   self.assertTrue(result["goal_reached"])
-  #   self.assertEqual(result["steps_passed"], 2)
+    self.assertTrue(result["is_valid"])
+    self.assertTrue(result["goal_reached"])
+    self.assertEqual(result["steps_passed"], 2)
 
-  # def test_verify_proof_invalid_wrong_construction(self):
-  #   """Test that invalid construction fails immediately."""
-  #   problem = 'a b c = triangle a b c ? perp a d b c'
-  #   # Invalid construction (point d not properly defined)
-  #   proof = 'd = invalid_construction d a b'
+  def test_verify_proof_invalid_wrong_construction(self):
+    """Test that invalid construction fails immediately."""
+    problem = 'a b c = triangle a b c ? perp a d b c'
+    # Invalid construction (point d not properly defined)
+    proof = 'd = invalid_construction d a b'
     
-  #   result = self.verifier.verify_proof(problem, proof)
+    result = self.verifier.verify_proof(problem, proof)
     
-  #   self.assertFalse(result["is_valid"])
-  #   self.assertFalse(result["goal_reached"])
+    self.assertFalse(result["is_valid"])
+    self.assertFalse(result["goal_reached"])
 
   def test_verify_proof_invalid_wrong_derivation(self):
     """Test that invalid derivation step fails immediately."""
@@ -67,17 +67,17 @@ class ProofVerifierTest(unittest.TestCase):
     self.assertEqual(result["steps_passed"], 1)  # First step (construction) passed
     self.assertIn("Logic Gap", result["error_msg"])
 
-  def test_verify_proof_stops_on_first_error(self):
-    """Test that verification stops on first invalid step."""
-    problem = 'a b c = triangle a b c ? perp a d b c'
-    # Multiple steps, second one is wrong
-    proof = 'd = on_tline d b a c, on_tline d c a b; wrong_predicate a b c; perp a d b c'
+  # def test_verify_proof_stops_on_first_error(self):
+  #   """Test that verification stops on first invalid step."""
+  #   problem = 'a b c = triangle a b c ? perp a d b c'
+  #   # Multiple steps, second one is wrong
+  #   proof = 'd = on_tline d b a c, on_tline d c a b; wrong_predicate a b c; perp a d b c'
     
-    result = self.verifier.verify_proof(problem, proof)
+  #   result = self.verifier.verify_proof(problem, proof)
     
-    self.assertFalse(result["is_valid"])
-    self.assertEqual(result["steps_passed"], 1)  # Only first step passed
-    self.assertIn("Logic Gap", result["error_msg"])
+  #   self.assertFalse(result["is_valid"])
+  #   self.assertEqual(result["steps_passed"], 1)  # Only first step passed
+  #   self.assertIn("Logic Gap", result["error_msg"])
 
   def test_verify_proof_empty_proof(self):
     """Test verification with empty proof steps."""
@@ -126,26 +126,26 @@ class ProofVerifierTest(unittest.TestCase):
     # But goal might not be reached without additional steps
     self.assertIsInstance(result["steps_passed"], int)
 
-  # def test_verify_proof_with_newline_separators(self):
-  #   """Test that proof steps can be separated by newlines."""
-  #   problem = 'a b c = triangle a b c; d = on_tline d b a c, on_tline d c a b ? perp a d b c'  # pylint: disable=line-too-long
-  #   proof = 'e = on_line e a c, on_line e b d'
+  def test_verify_proof_with_newline_separators(self):
+    """Test that proof steps can be separated by newlines."""
+    problem = 'a b c = triangle a b c; d = on_tline d b a c, on_tline d c a b ? perp a d b c'  # pylint: disable=line-too-long
+    proof = 'e = on_line e a c, on_line e b d'
     
-  #   result = self.verifier.verify_proof(problem, proof)
+    result = self.verifier.verify_proof(problem, proof)
     
-  #   self.assertTrue(result["is_valid"])
-  #   self.assertTrue(result["goal_reached"])
+    self.assertTrue(result["is_valid"])
+    self.assertTrue(result["goal_reached"])
 
-  # def test_verify_proof_mixed_separators(self):
-  #   """Test proof with mixed semicolon and newline separators."""
-  #   problem = 'a b c = triangle a b c ? perp a d b c'
-  #   proof = 'd = on_tline d b a c, on_tline d c a b\ne = on_line e a c, on_line e b d'
+  def test_verify_proof_mixed_separators(self):
+    """Test proof with mixed semicolon and newline separators."""
+    problem = 'a b c = triangle a b c ? perp a d b c'
+    proof = 'd = on_tline d b a c, on_tline d c a b\ne = on_line e a c, on_line e b d'
     
-  #   result = self.verifier.verify_proof(problem, proof)
+    result = self.verifier.verify_proof(problem, proof)
     
-  #   self.assertTrue(result["is_valid"])
-  #   self.assertTrue(result["goal_reached"])
-  #   self.assertEqual(result["steps_passed"], 2)
+    self.assertTrue(result["is_valid"])
+    self.assertTrue(result["goal_reached"])
+    self.assertEqual(result["steps_passed"], 2)
 
   def test_verify_proof_simple_derivation_only(self):
     """Test proof with only derivation steps (no constructions)."""
