@@ -1,7 +1,6 @@
 import dd
 import graph as gh
 import problem as pr
-import geometry as gm
 
 class ProofVerifier:
     def __init__(self, defs_path="defs.txt", rules_path="rules.txt"):
@@ -58,7 +57,6 @@ class ProofVerifier:
                 return False
 
         # 3) Incremental deepening over theorem "level"
-        # IMPORTANT: do NOT break just because a lower level saturates.
         for level in range(1, max_level + 1):
             if goal_holds():
                 return True
@@ -74,7 +72,7 @@ class ProofVerifier:
                 timeout=30,  # Reduced timeout for faster failure
             )
 
-            # Apply AR outputs (if bfs_one_level doesn't already apply them)
+            # Apply AR outputs 
             if derives:
                 dd.apply_derivations(g, derives)
             if eq4s:
@@ -82,9 +80,6 @@ class ProofVerifier:
 
             if goal_holds():
                 return True
-
-            # NO early break here.
-            # Even if this level added nothing, the next level may enable new rules.
 
         return goal_holds()
 
@@ -155,7 +150,6 @@ class ProofVerifier:
                     return result
                 
         print("All steps passed")
-        # All steps passed
         result["steps_passed"] = len(steps)
 
         # 3. Final goal verification
@@ -166,7 +160,7 @@ class ProofVerifier:
             result["error_msg"] = "Verified (No global goal)."
             return result
         
-        # For final goal, use larger max_level (e.g., 10)
+        # For final goal, use larger max_level (increase with difficulty)
         is_goal_reached = self._run_bfs_check(current_context, global_goal_dsl.strip(), max_level=10)
         print("is_goal_reached: ", is_goal_reached)
         if is_goal_reached:
