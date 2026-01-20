@@ -184,6 +184,14 @@ class ProofVerifierTest(unittest.TestCase):
     self.assertFalse(result["is_valid"])
     self.assertEqual(result["steps_passed"], 0)
 
-
+  def test_verify_proof_complex56(self):
+    """Test that proof with problem 56 is valid."""
+    problem = "a b c d = isquare a b c d; m = midpoint m a b; n = midpoint n b c; p = midpoint p c d; q = midpoint q d a; o = on_line o a c, on_line o b d ? cong o m o n"
+    proof = 'midp m a b; midp n b c; para m n a c; eqratio6 a b c b a m c n; cong a m c n; para a d b c; coll c o a; coll o b d; eqratio a d c b o a o c; para a b c d; eqangle a d d c c b b a; eqangle a c c d c a a b; simtri a d c c b a; cong a d c b; cong o a o c; cong a b b c; eqangle c a a b b c c a; coll c n b; eqangle n c c o o a a m; cong o n o m'
+    
+    result = self.verifier.verify_proof(problem, proof)
+    self.assertEqual(result["steps_passed"], 10)
+    self.assertTrue(result["goal_reached"])
+    self.assertTrue(result["is_valid"])
 if __name__ == '__main__':
   absltest.main()
