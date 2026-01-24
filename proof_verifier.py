@@ -12,6 +12,49 @@ class ProofVerifier:
     def _is_construction(self, dsl: str) -> bool:
         return "=" in dsl
 
+    def _parse_predicate(self, predicate_str: str) -> tuple[str, list[str]]:
+        """Parse a predicate string into (name, args)."""
+        parts = predicate_str.strip().split()
+        if len(parts) < 2:
+            raise ValueError(f"Invalid predicate format: {predicate_str}")
+        return parts[0], parts[1:]
+
+    def _add_verified_predicates_to_graph(self, g: gh.Graph, context_str: str) -> None:
+        """
+        Add verified predicates from context string to the graph.
+        Predicates are derivation steps (without ' = ') that have been verified.
+        """
+        # Split context into clauses
+        clauses = [c.strip() for c in context_str.split(';') if c.strip()]
+        
+        for clause in clauses:
+            # Skip constructions (they have ' = ')
+            if ' = ' in clause:
+                continue
+            
+            # Parse predicate and add to graph
+            try:
+                pred_name, pred_args = self._parse_predicate(clause)
+                # Convert argument names to nodes
+                try:
+                    nodes = g.names2nodes(pred_args)
+                except Exception:
+                    # Some arguments might not exist yet, skip this predicate
+                    continue
+                
+                # Check if predicate already exists in graph
+                if not g.check(pred_name, nodes):
+                    # Add predicate with empty dependency (verified step)
+                    deps = pr.EmptyDependency(level=0, rule_name="verified")
+                    try:
+                        g.add_piece(pred_name, nodes, deps=deps)
+                    except ValueError:
+                        # Predicate name not recognized by add_piece, skip
+                        pass
+            except (ValueError, Exception):
+                # Skip invalid predicates
+                continue
+
     def _run_bfs_check(self, context_str: str, target_predicate_str: str, max_level=2) -> bool:
         """
         Check if target is derivable from context by incrementally enabling
@@ -19,31 +62,30 @@ class ProofVerifier:
         """
         target_predicate_str = target_predicate_str.strip().rstrip(";")
         context_str = context_str.strip().rstrip(";")
-
         # 1) Build a temporary Problem with explicit goal
         # Problem.from_txt() will parse the goal as a Construction
         try:
             temp_prob_txt = f"{context_str} ? {target_predicate_str}"
             p = pr.Problem.from_txt(temp_prob_txt)
             try:
-                g, _ = gh.Graph.build_problem(p, self.defs, verbose=False)
+                g, _ = gh.Graph.build_problem(p, self.defs, verbose=True)
+                # Add verified predicates from context to the graph
+                self._add_verified_predicates_to_graph(g, context_str)
             except Exception as e:
                 print(f"  [Graph build failed] {type(e).__name__}: {e}")
                 return False
         except Exception as e:
+            print(f"  [Problem parse failed] {type(e).__name__}: {e}")
             return False
 
         # Check if goal exists
         if p.goal is None:
             return False
 
-
         # Helper: check goal if all names exist
         def goal_holds() -> bool:
-            try:
-                goal_args = g.names2nodes(p.goal.args)
-            except Exception:
-                return False
+
+            goal_args = g.names2nodes(p.goal.args)
             try:
                 return g.check(p.goal.name, goal_args)
             except (ValueError, KeyError, AttributeError) as e:
@@ -161,7 +203,9 @@ class ProofVerifier:
             return result
         
         # For final goal, use larger max_level (increase with difficulty)
+        print(f"final goal: {global_goal_dsl.strip()}")
         is_goal_reached = self._run_bfs_check(current_context, global_goal_dsl.strip(), max_level=10)
+        
         print("is_goal_reached: ", is_goal_reached)
         if is_goal_reached:
             result["is_valid"] = True

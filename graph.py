@@ -2577,8 +2577,15 @@ class Graph:
     new_points_dep_points = set()
     new_points_dep = []
 
+    # Filter out predicates that are not in definitions
+    valid_constructions = [c for c in clause.constructions if c.name in definitions]
+    
+    # If no valid constructions, return early (predicate-only clause)
+    if not valid_constructions:
+      return [], plevel
+
     # Step 1: check for all deps.
-    for c in clause.constructions:
+    for c in valid_constructions:
       cdef = definitions[c.name]
 
       if len(cdef.construction.args) != len(c.args):
@@ -2613,7 +2620,7 @@ class Graph:
         list[Union[nm.Point, nm.Line, nm.Circle, nm.HalfLine, nm.HoleCircle]]
     ):
       to_be_intersected = []
-      for c in clause.constructions:
+      for c in valid_constructions:
         cdef = definitions[c.name]
         mapping = dict(zip(cdef.construction.args, c.args))
         for n in cdef.numerics:
@@ -2624,11 +2631,11 @@ class Graph:
       return to_be_intersected
 
     is_total_free = (
-        len(clause.constructions) == 1 and clause.constructions[0].name in FREE
+        len(valid_constructions) == 1 and valid_constructions[0].name in FREE
     )
     is_semi_free = (
-        len(clause.constructions) == 1
-        and clause.constructions[0].name in INTERSECT
+        len(valid_constructions) == 1
+        and valid_constructions[0].name in INTERSECT
     )
 
     existing_points = [p.num for p in existing_points]
@@ -2638,7 +2645,7 @@ class Graph:
       return nm.reduce(to_be_intersected, existing_points)
 
     rely_on = set()
-    for c in clause.constructions:
+    for c in valid_constructions:
       cdef = definitions[c.name]
       mapping = dict(zip(cdef.construction.args, c.args))
       for n in cdef.numerics:
@@ -2683,7 +2690,7 @@ class Graph:
     # movement dependency:
     rely_dict_0 = defaultdict(lambda: [])
 
-    for c in clause.constructions:
+    for c in valid_constructions:
       cdef = definitions[c.name]
       mapping = dict(zip(cdef.construction.args, c.args))
       for p, ps in cdef.rely.items():
@@ -2715,7 +2722,8 @@ class Graph:
     added = []
     basics = []
     # Step 3: build the basics.
-    for c, deps in zip(clause.constructions, new_points_dep):
+    # Use filtered constructions and their corresponding dependencies
+    for c, deps in zip(valid_constructions, new_points_dep):
       cdef = definitions[c.name]
       mapping = dict(zip(cdef.construction.args, c.args))
 

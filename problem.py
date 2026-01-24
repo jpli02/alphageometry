@@ -73,6 +73,20 @@ class Clause:
   def from_txt(cls, data: str) -> Clause:
     if data == ' =':
       return Clause([], [])
+    if ' = ' not in data:
+      # Handle predicates/derivations without ' = ' (e.g., "para m n a c")
+      # Parse as a predicate: extract predicate name and args
+      parts = data.strip().split()
+      if len(parts) < 2:
+        # Empty or invalid, return empty clause
+        return Clause([], [])
+      # Treat as a predicate: first part is predicate name, rest are args
+      pred_name = parts[0]
+      pred_args = parts[1:]
+      # Create a construction from the predicate
+      construction = Construction(pred_name, pred_args)
+      # Use the args as points for the clause
+      return Clause(pred_args, [construction])
     points, constructions = data.split(' = ')
     return Clause(
         points.split(' '),
