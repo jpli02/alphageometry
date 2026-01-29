@@ -1,6 +1,7 @@
 import dd
 import graph as gh
 import problem as pr
+import collections
 
 class ProofVerifier:
     def __init__(self, defs_path="defs.txt", rules_path="rules.txt"):
@@ -12,55 +13,68 @@ class ProofVerifier:
         return "=" in dsl
 
     def _parse_predicate(self, predicate_str: str) -> tuple[str, list[str]]:
-        """Parse a predicate string into (name, args)."""
-        parts = predicate_str.strip().split()
+        parts = predicate_str.replace(',', ' ').split()
         if len(parts) < 2:
             raise ValueError(f"Invalid predicate format: {predicate_str}")
-        name = parts[0]
-        # Remove trailing commas from arguments
-        args = [arg.strip(",") for arg in parts[1:]]
-        return name, args
+        return parts[0], parts[1:]
 
     def _add_verified_predicates_to_graph(self, g: gh.Graph, context_str: str) -> None:
-        """Add previously verified predicates to the graph."""
+        """
+        Add previously verified predicates to the graph using apply_derivations.
+        This ensures algebraic solvers (angles, ratios) are updated.
+        """
         clauses = [c.strip() for c in context_str.split(';') if c.strip()]
         
+        # Structure: {predicate_name: [(args_nodes, dependency_object), ...]}
+        derived_facts = collections.defaultdict(list)
+        
+        dummy_dep = pr.EmptyDependency(level=0, rule_name="verified")
+
         for clause in clauses:
+            # Skip constructions (handled by Graph.build_problem)
             if ' = ' in clause:
                 continue
+                
             try:
                 pred_name, pred_args = self._parse_predicate(clause)
+                
                 try:
+                    # Convert string args (e.g. "a", "b") to graph nodes (integers/objects)
                     nodes = g.names2nodes(pred_args)
-                except KeyError:
-                    continue
-                except Exception:
+                except (KeyError, Exception):
+                    # If points don't exist in graph yet, skip.
                     continue
                 
+                # Check if this fact is already known to avoid redundancy
                 if not g.check(pred_name, nodes):
-                    deps = pr.EmptyDependency(level=0, rule_name="verified")
-                    try:
-                        g.add_piece(pred_name, nodes, deps=deps)
-                    except ValueError:
-                        pass
+                    derived_facts[pred_name].append((nodes, dummy_dep))
+                    
             except (ValueError, Exception):
                 continue
 
+        # Apply the facts to the graph's algebraic engine
+        if derived_facts:
+            try:
+                dd.apply_derivations(g, derived_facts)
+            except Exception as e:
+                print(f"  [Context Load Warning] Failed to apply some context: {e}")
+
     def _run_bfs_check(self, context_str: str, target_predicate_str: str, max_level=2) -> bool:
-        """
-        Check if target is derivable from context using incremental deepening.
-        Wraps dd.bfs_one_level in try/except to prevent solver crashes.
-        """
         target_predicate_str = target_predicate_str.strip().rstrip(";")
         context_str = context_str.strip().rstrip(";")
         
         try:
+            # We treat the context + target as a temporary problem
             temp_prob_txt = f"{context_str} ? {target_predicate_str}"
             p = pr.Problem.from_txt(temp_prob_txt)
             
             try:
+                # 1. Build graph from constructions (handled natively by build_problem)
                 g, _ = gh.Graph.build_problem(p, self.defs, verbose=False)
+                
+                # 2. Manually apply the non-construction facts from context
                 self._add_verified_predicates_to_graph(g, context_str)
+                
             except Exception as e:
                 print(f"  [Graph build failed] {type(e).__name__}: {e}")
                 return False
@@ -80,14 +94,12 @@ class ProofVerifier:
             except Exception:
                 return False
 
-        # Incremental deepening
+        # Incremental deepening BFS
         for level in range(1, max_level + 1):
             if goal_holds():
                 return True
 
             try:
-                # Run the solver for one level
-                # nm_check=True helps avoid bad geometry, but doesn't catch all logic errors
                 added, derives, eq4s, _ = dd.bfs_one_level(
                     g,
                     self.rules_dict,
@@ -95,7 +107,7 @@ class ProofVerifier:
                     p,
                     verbose=False,
                     nm_check=True,
-                    timeout=30,
+                    timeout=300,
                 )
 
                 if derives:
@@ -103,12 +115,11 @@ class ProofVerifier:
                 if eq4s:
                     dd.apply_derivations(g, eq4s)
             
+            except ValueError as e:
+                # Catch specific solver errors like "Cannot be perp"
+                continue
             except Exception as e:
-                # CRITICAL FIX: Catch solver crashes (like "ab and ab Cannot be perp")
-                # If the solver crashes at this level, we assume this path is invalid.
-                print(f"  [Solver Error at Level {level}] {type(e).__name__}: {e}")
-                # Depending on strictness, we can either continue to next level or return False.
-                # Usually a crash means the graph state is corrupted or inconsistent.
+                print(f"  [Solver Error] {type(e).__name__}: {e}")
                 return False
 
         return goal_holds()
@@ -121,7 +132,6 @@ class ProofVerifier:
             "goal_reached": False
         }
 
-        # 1. Parse Problem
         if "?" in problem_txt:
             prems, global_goal_dsl = problem_txt.split("?", 1)
         else:
@@ -129,7 +139,6 @@ class ProofVerifier:
         
         current_context = prems.strip()
         
-        # 2. Parse Proof Steps (Handling commas as separators for non-constructions)
         raw_str = proof_dsl.replace('\n', ';')
         raw_segments = [s.strip() for s in raw_str.split(';') if s.strip()]
         
@@ -147,7 +156,6 @@ class ProofVerifier:
 
         print(f"--- Starting Verification (Steps: {len(steps)}) ---")
 
-        # 3. Verify Sequentially
         for i, step in enumerate(steps):
             step_num = i + 1
 
@@ -161,7 +169,7 @@ class ProofVerifier:
                 print(f"  Step {step_num} (Derivation): {step}")
                 clean_step = step.rstrip(",;")
                 
-                # Check derivation
+                # Check if derivable
                 if self._run_bfs_check(current_context, clean_step, max_level=10):
                     print(f"    [OK]")
                     current_context = f"{current_context}; {clean_step}"
@@ -170,18 +178,17 @@ class ProofVerifier:
                     result["steps_passed"] = i
                     return result
         
-        print("All steps passed")
         result["steps_passed"] = len(steps)
 
-        # 4. Global Goal Check
         if not global_goal_dsl.strip():
             result["is_valid"] = True
             result["goal_reached"] = True
             result["error_msg"] = "Verified (No global goal)."
             return result
         
+        # Verify Final Goal
         print(f"Checking Final Goal: {global_goal_dsl.strip()}")
-        is_goal_reached = self._run_bfs_check(current_context, global_goal_dsl.strip(), max_level=12)
+        is_goal_reached = self._run_bfs_check(current_context, global_goal_dsl.strip(), max_level=10)
         
         if is_goal_reached:
             result["is_valid"] = True

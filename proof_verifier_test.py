@@ -72,16 +72,26 @@ class ProofVerifierTest(unittest.TestCase):
     self.assertTrue(result["goal_reached"])
     self.assertTrue(result["is_valid"])
     
-  def test_verify_proof_complex44(self):
-    """Test that proof with problem 44 is valid."""
-    problem = "a b c = triangle a b c; o = circle o a b c; d = on_line d b c; e = on_line e b c, on_circle e a d; f = on_circle f o a, on_circle f a d; g = on_circle g o a, on_circle g a d; o1 = circle o1 f b d; o2 = circle o2 g c e; k = on_circle k o1 b, on_line k a b; l = on_circle l o2 c, on_line l a c; x = on_line x f k, on_line x l g ? coll x o a"
-    proof = "cong o b o c; cong o a o b; coll c d b; coll c e b; cong a e a d; cong a f a d; cong o f o a; cong a g a d; cong o g o a; cong o1 b o1 d; cong o1 f o1 b; cong o2 g o2 c;cong o2 c o2 e; cong o1 k o1 b; coll a b k; cong o2 l o2 c; coll c a l; coll f x k; coll l g x; cong a f a g; cyclic b k d f; eqangle k b k d f b f d; cyclic b f a g; cyclic g a f c; cyclic g b f c; cyclic f e g d; "
+  def test_verify_proof_complex43(self):
+    """Test that proof with problem 43 is valid."""
+    problem = "a b c = triangle a b c; o = circle o a b c; b1 = on_circle b1 o a, on_bline b1 c a; d1 = on_circle d1 o a, on_bline d1 c a; x = on_line x b b1, on_line x a c; d = on_line d d1 x, on_circle d o a; p = foot p d b c; q = foot q d c a; r = foot r d a b ? cong p q q r"
+    proof = 'cyclic a b c d; perp b1 d1 a c; cyclic d r a q; cyclic d p c q; perp d p b c; perp d q a c; perp d r a b; coll p q r; eqangle q p q d c p c d; eqangle q r q d a r a d'
     result = self.verify_proof(problem, proof)
     print(result)
     
     self.assertTrue(result["goal_reached"])
     self.assertTrue(result["is_valid"])
+  
+  def test_verify_proof_complex43_failure(self):
+    """Test that proof with problem 43 is failed. invalid proof."""
+    problem = "a b c = triangle a b c; o = circle o a b c; b1 = on_circle b1 o a, on_bline b1 c a; d1 = on_circle d1 o a, on_bline d1 c a; x = on_line x b b1, on_line x a c; d = on_line d d1 x, on_circle d o a; p = foot p d b c; q = foot q d c a; r = foot r d a b ? cong p q q r" 
+    proof = 'cyclic a b c d; perp b1 d1 a c; cyclic d r a q; cyclic d p c q; perp d p b c; perp d q a c; perp d r a b; coll p q r; eqangle q p q d c p c d; eqangle q r q d a r a c'
+    result = self.verify_proof(problem, proof)
+    print(result)
 
+    self.assertFalse(result["goal_reached"])
+    self.assertFalse(result["is_valid"])
+    
   def test_verify_proof_complex56(self):
     """Test that proof with problem 56 is valid."""
     problem = "a b c = ieq_triangle a b c; m = midpoint m a b; n = midpoint n b c; p = midpoint p a c ? para m n a c"
